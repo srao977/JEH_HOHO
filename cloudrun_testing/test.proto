@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package health;
+
+// The Go package path where the generated code should live
+option go_package = "./proto/health";
+
+// The Health Checker Service definition
+service HealthService {
+  // 1. Unary RPC (Standard Request-Response)
+  rpc Ping (PingRequest) returns (PingResponse);
+
+  // 2. Server Streaming RPC (Crucial for testing end-to-end HTTP/2 multiplexing)
+  rpc StreamStatus (StatusRequest) returns (stream StatusResponse);
+}
+
+message PingRequest {
+  string greeting = 1;
+}
+
+message PingResponse {
+  string reply = 1;
+}
+
+message StatusRequest {
+  string service_name = 1;
+}
+
+message StatusResponse {
+  string status_message = 1;
+  int64 timestamp = 2;
+}
