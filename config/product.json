@@ -1,0 +1,22 @@
+{
+  "product_version": "0.1.0-candidate",
+  "alpaca_stream_url": "wss://stream.data.alpaca.markets/v2/iex",
+  "alpaca_feed": "iex",
+  "symbols": ["AAPL", "AMD", "AMZN", "AVGO", "BAC", "COST", "DIA", "EEM", "GLD", "GOOGL", "HD", "IWM", "JNJ", "JPM", "MA", "META", "MSFT", "NFLX", "NVDA", "QQQ", "SPY", "TLT", "TSLA", "UNH", "V", "VXX", "WMT", "XLF", "XLK", "XOM"],
+  "source_address": "127.0.0.1:50051",
+  "jeh_address": "127.0.0.1:50052",
+  "viewer_address": "127.0.0.1:3010",
+  "mongo_uri": "mongodb://127.0.0.1:27017",
+  "mongo_database": "bar_sequence_db",
+  "mongo_trace_collection": "h_h_stage_emit_values",
+  "mongo_reservoir_collection": "capital_reservoir_events",
+  "source_data_directory": "data/source",
+  "viewer_directory": "viewer",
+  "node_executable": "runtime/node.exe",
+  "run_type": "RUN_A",
+  "starting_capital": 100000,
+  "allocation_percent": 1,
+  "risk_r": 0,
+  "source_buffer_capacity": 64,
+  "open_viewer": true
+}

@@ -1,0 +1,14 @@
+# File: .gitignore
+# Date: 2026-09-17
+# Version/Status: 1.0 / Product repository hygiene
+# Product/Component: JEH-HOHO / Repository
+# Purpose: Exclude credentials, runtime state, generated package output, and local caches.
+
+/config/credentials.json
+/data/
+/dist/
+/runtime/
+/viewer/.next/
+/viewer/node_modules/
+/viewer/next-env.d.ts
+/viewer/*.tsbuildinfo

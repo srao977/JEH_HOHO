@@ -1,0 +1,444 @@
+// File / Contract Title: JEH_HOHO.proto / JEH-HOHO V1 Product Contract
+// Date: 2026-09-17
+// Version: 1.0
+// Status: Implementation authorized; validation required
+// Product: JEH-HOHO
+// Component / Contract Owner: JEH-HOHO Product Contract
+// Authority: Chino Rao, Human Authority
+// Purpose: Define the minimum product-owned source, evidence, and operations boundaries.
+// Executive Overview: This single V1 source owns shared product identity and status
+// definitions, accepted Bar delivery, unchanged Capital evidence publication, and
+// read-only product status. Logical service sections do not create separate contracts.
+// Inputs: Accepted Alpaca observations and existing JEH Runtime/Capital evidence.
+// Outputs: Accepted Bar streams, Capital/status evidence streams, and status snapshots.
+// Dependencies: Protocol Buffers v3 and the frozen internal JEH adapter boundary.
+// Invariants: Both Alpaca b/u arrivals remain separate; reconnect has no resume or gap
+// fill; Capital values retain established semantics; internal JEH stage APIs stay private.
+// Non-Responsibilities: JEH mathematics, source consolidation, gap repair, lifecycle
+// mutation, broker execution, remote-access security, and internal stage orchestration.
+// Compatibility / Versioning Notes: package jeh_hoho.v1 evolves additively. Field
+// numbers are never reused; removed names/numbers are reserved; semantics never change.
+// Security / Trust Boundary Notes: V1 callers are package-local loopback components.
+// Remote exposure is not authorized. Implementations validate all untrusted input.
+// Change Log: 2026-09-17 v1.0 - Initial single-file product contract.
+
+syntax = "proto3";
+
+package jeh_hoho.v1;
+
+option go_package = "jeh-hoho/gen/go/jeh_hoho/v1;jehhohov1";
+
+// ============================================================================
+// COMMON PRODUCT ENUMS
+// ============================================================================
+
+// ProductLifecycleState reports aggregate product lifecycle. The controller is
+// the semantic authority. Unknown future values must be displayed as unsupported,
+// not coerced into an existing state. UNSPECIFIED means no state was asserted.
+enum ProductLifecycleState {
+  PRODUCT_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  PRODUCT_LIFECYCLE_STATE_STOPPED = 1;
+  PRODUCT_LIFECYCLE_STATE_STARTING = 2;
+  PRODUCT_LIFECYCLE_STATE_CONNECTING = 3;
+  PRODUCT_LIFECYCLE_STATE_READY = 4;
+  PRODUCT_LIFECYCLE_STATE_DEGRADED = 5;
+  PRODUCT_LIFECYCLE_STATE_STOPPING = 6;
+  PRODUCT_LIFECYCLE_STATE_FAILED = 7;
+}
+
+// ComponentLifecycleState reports one owned component's lifecycle independently
+// of market activity. Unknown future values remain unknown. UNSPECIFIED means the
+// component has not supplied a state.
+enum ComponentLifecycleState {
+  COMPONENT_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  COMPONENT_LIFECYCLE_STATE_STOPPED = 1;
+  COMPONENT_LIFECYCLE_STATE_STARTING = 2;
+  COMPONENT_LIFECYCLE_STATE_RUNNING = 3;
+  COMPONENT_LIFECYCLE_STATE_RECONNECTING = 4;
+  COMPONENT_LIFECYCLE_STATE_DEGRADED = 5;
+  COMPONENT_LIFECYCLE_STATE_STOPPING = 6;
+  COMPONENT_LIFECYCLE_STATE_FAILED = 7;
+}
+
+// SourceConnectionState exposes the existing source connection lifecycle. It
+// does not assert event freshness or continuity. Unknown future values remain unknown.
+enum SourceConnectionState {
+  SOURCE_CONNECTION_STATE_UNSPECIFIED = 0;
+  SOURCE_CONNECTION_STATE_CONNECTING = 1;
+  SOURCE_CONNECTION_STATE_AUTHENTICATED = 2;
+  SOURCE_CONNECTION_STATE_SUBSCRIBED = 3;
+  SOURCE_CONNECTION_STATE_RECONNECTING = 4;
+  SOURCE_CONNECTION_STATE_STOPPED = 5;
+  SOURCE_CONNECTION_STATE_FAILED = 6;
+}
+
+// ContinuityState reports only what the existing source can prove. UNKNOWN is the
+// authoritative state after a disconnected interval because V1 has no resume token
+// or gap fill. Unknown future values must not be treated as CONTINUOUS.
+enum ContinuityState {
+  CONTINUITY_STATE_UNSPECIFIED = 0;
+  CONTINUITY_STATE_CONTINUOUS = 1;
+  CONTINUITY_STATE_UNKNOWN = 2;
+}
+
+// EvidenceType identifies the populated ProductEvidenceEnvelope variant. The
+// envelope oneof remains authoritative; unknown future values are ignored safely.
+enum EvidenceType {
+  EVIDENCE_TYPE_UNSPECIFIED = 0;
+  EVIDENCE_TYPE_PRODUCT_STATUS = 1;
+  EVIDENCE_TYPE_SOURCE_STATUS = 2;
+  EVIDENCE_TYPE_CAPITAL_RESERVOIR = 3;
+}
+
+// CapitalReservoirEventType preserves the existing Capital ledger event type.
+// It is not a strategy state. Unknown future values must not be reinterpreted.
+enum CapitalReservoirEventType {
+  CAPITAL_RESERVOIR_EVENT_TYPE_UNSPECIFIED = 0;
+  CAPITAL_RESERVOIR_EVENT_TYPE_RUN_START = 1;
+  CAPITAL_RESERVOIR_EVENT_TYPE_OUTFLOW = 2;
+  CAPITAL_RESERVOIR_EVENT_TYPE_INFLOW = 3;
+  CAPITAL_RESERVOIR_EVENT_TYPE_RUN_END = 4;
+}
+
+// CapitalReservoirCause preserves established strategy causality independently
+// of cash-flow direction. Unknown future values must remain unknown.
+enum CapitalReservoirCause {
+  CAPITAL_RESERVOIR_CAUSE_UNSPECIFIED = 0;
+  CAPITAL_RESERVOIR_CAUSE_HOP_ON = 1;
+  CAPITAL_RESERVOIR_CAUSE_HOP_OFF = 2;
+  CAPITAL_RESERVOIR_CAUSE_SAFETY_LIQUIDATION = 3;
+}
+
+// ============================================================================
+// COMMON PRODUCT IDENTITY / SHARED MESSAGES
+// ============================================================================
+
+// ProductIdentity identifies one packaged product instance/run. The lifecycle
+// controller produces it; source, JEH, evidence, Viewer, and support tooling consume it.
+message ProductIdentity {
+  // Product release version from the package manifest; empty means unavailable.
+  string product_version = 1;
+  // Controller-generated product run identity, unique within the installation.
+  string product_run_id = 2;
+  // UTC product start time in Unix milliseconds; zero means not started.
+  int64 started_unix_ms = 3;
+}
+
+// SourceIdentity identifies one Bar Sequence source collection. The source engine
+// produces it and the JEH adapter, status surface, and evidence consumers use it.
+message SourceIdentity {
+  // Configured source authority such as ALPACA_IEX; empty is invalid once running.
+  string source_id = 1;
+  // Source-generated collection identity scoped to one engine lifetime.
+  string collection_run_id = 2;
+  // Feed name used by the source; empty means the source did not expose one.
+  string feed = 3;
+}
+
+// ContinuityStatus describes the source's provable continuity state. The source
+// produces it; the controller, JEH adapter, Viewer, and support tooling consume it.
+message ContinuityStatus {
+  // Current proof state. UNKNOWN is required after an unprovable disconnected interval.
+  ContinuityState state = 1;
+  // Human-readable reason without secrets; empty means no additional reason.
+  string reason = 2;
+  // UTC time in Unix milliseconds when this state was produced; zero is unavailable.
+  int64 produced_unix_ms = 3;
+}
+
+// ComponentStatus reports one package-owned component. The owning component or
+// controller produces it; operations and Viewer consumers use it for status only.
+message ComponentStatus {
+  // Stable package component name: source, jeh, evidence, viewer, or controller.
+  string component = 1;
+  // Component release version from the package manifest; empty is unavailable.
+  string version = 2;
+  // Existing lifecycle truth; RUNNING does not imply recent market activity.
+  ComponentLifecycleState lifecycle_state = 3;
+  // Whether the owned process/resource is live at production time.
+  bool process_live = 4;
+  // Sanitized operational reason; empty means no additional reason.
+  string reason = 5;
+  // UTC production time in Unix milliseconds; zero means unavailable.
+  int64 produced_unix_ms = 6;
+}
+
+// SourceStreamStatus reports source connection, subscription, collection, and
+// continuity without asserting market freshness. The source is authoritative.
+message SourceStreamStatus {
+  SourceIdentity source_identity = 1;
+  SourceConnectionState connection_state = 2;
+  ContinuityStatus continuity = 3;
+  // Configured normalized symbols. Order is configuration order, not market order.
+  repeated string subscribed_symbols = 4;
+  // UTC receipt time of the latest accepted observation; zero means none received.
+  int64 last_observation_unix_ms = 5;
+  // Sanitized connection/status reason; empty means no additional reason.
+  string reason = 6;
+  // UTC production time in Unix milliseconds; zero means unavailable.
+  int64 produced_unix_ms = 7;
+}
+
+// ============================================================================
+// ACCEPTED BAR SOURCE CONTRACT
+// ============================================================================
+
+// StreamAcceptedBarsRequest identifies the sole local JEH consumer. It does not
+// request symbols, replay, resume, gap fill, filtering, or source lifecycle mutation.
+message StreamAcceptedBarsRequest {
+  // Stable consumer identity used for diagnostics; empty is invalid.
+  string consumer_id = 1;
+}
+
+// AcceptedBarObservation is one immutable arrival accepted by the graduated Bar
+// Sequence source. The source produces it and the JEH adapter consumes it. Identity
+// is collection_run_id + symbol + entity_sequence. Both Alpaca b/u arrivals are
+// separate observations; duplicate flags never remove an observation.
+message AcceptedBarObservation {
+  SourceIdentity source_identity = 1;
+  // Deterministic source observation identity; empty is invalid.
+  string observation_id = 2;
+  // Uppercase normalized symbol; empty is invalid.
+  string symbol = 3;
+  // Per-symbol accepted-arrival sequence, starting at 1 within collection scope.
+  uint64 entity_sequence = 4;
+  // Existing interval text such as "1m"; empty is invalid.
+  string interval = 5;
+  // Source interval start in Unix milliseconds UTC.
+  int64 interval_start_unix_ms = 6;
+  // Source interval end in Unix milliseconds UTC.
+  int64 interval_end_unix_ms = 7;
+  // Source quote-unit opening value; must satisfy existing finite OHLC validation.
+  double open = 8;
+  // Source quote-unit high value; must satisfy existing finite OHLC validation.
+  double high = 9;
+  // Source quote-unit low value; must satisfy existing finite OHLC validation.
+  double low = 10;
+  // Source quote-unit closing value; must satisfy existing finite OHLC validation.
+  double close = 11;
+  // Source volume units. Presence distinguishes absent from an authoritative zero.
+  optional uint64 volume = 12;
+  // Source trade/event count. Presence distinguishes absent from zero.
+  optional uint32 event_count = 13;
+  // Exact provider timestamp text; no additional temporal semantics are inferred.
+  string source_timestamp = 14;
+  // Source event time in Unix milliseconds UTC.
+  int64 source_event_unix_ms = 15;
+  // Adapter receipt time in Unix milliseconds UTC.
+  int64 received_unix_ms = 16;
+  // Alpaca message type "b" or "u". Both values have identical acceptance treatment.
+  string alpaca_message_type = 17;
+  // Lowercase or uppercase hexadecimal raw-payload SHA-256 from the source authority.
+  string payload_hash = 18;
+  // True when this payload identity was previously accepted; it remains sequenced.
+  bool duplicate_arrival = 19;
+  // True when source event time precedes the prior accepted time for this symbol.
+  bool source_time_regression = 20;
+  // Existing JEH-boundary accepted/final mapping. V1 accepted observations are true.
+  bool is_final = 21;
+}
+
+// StreamAcceptedBarsResponse carries one accepted observation without changing
+// source identity, sequence, ordering, finality, or duplicate semantics.
+message StreamAcceptedBarsResponse {
+  AcceptedBarObservation observation = 1;
+}
+
+// AcceptedBarSourceService owns live delivery of already accepted observations.
+// Owner: Bar Sequence Source. Intended caller: sole local JEH source adapter.
+// Lifecycle: available while the source process runs; market reconnect is internal.
+// Authority: accepted arrival identity/order and existing source provenance.
+// Guarantees: per-symbol sequence order for delivered accepted arrivals and no silent
+// consolidation. Non-guarantees: market completeness across disconnect, replay,
+// resume, gap fill, global symbol order, JEH admission, or downstream persistence.
+service AcceptedBarSourceService {
+  // StreamAcceptedBars delivers immutable accepted arrivals to the JEH adapter.
+  // Caller: sole package-local JEH adapter. Request: diagnostic consumer identity.
+  // Response: server stream of accepted observations in source delivery order.
+  // Ordering: entity_sequence is monotonic per symbol within collection identity.
+  // Identity: collection + symbol + entity_sequence; observation_id is authoritative.
+  // Cancellation: caller cancellation ends only this subscription, not source process.
+  // Errors: standard gRPC status for invalid caller, shutdown, or source failure.
+  // Retry/resume: reconnect starts a new subscription with no replay/resume guarantee;
+  // continuity after a disconnected interval is UNKNOWN. Side effects: none beyond
+  // delivery. Invariants: no filtering/consolidation. Non-responsibilities: JEH logic.
+  rpc StreamAcceptedBars(StreamAcceptedBarsRequest) returns (stream StreamAcceptedBarsResponse);
+}
+
+// ============================================================================
+// PRODUCT EVIDENCE CONTRACT
+// ============================================================================
+
+// SubscribeEvidenceRequest selects the sole local product run. It provides no
+// resume sequence because existing publication has no replay/resume guarantee.
+message SubscribeEvidenceRequest {
+  // Product run identity to observe; empty addresses the sole local run.
+  string product_run_id = 1;
+}
+
+// CapitalReservoirEvidence is the product representation of the existing
+// authoritative CapitalReservoirEvent. The JEH evidence adapter produces it; the
+// Viewer and approved diagnostics consume it. Pipeline run + sequence is identity.
+message CapitalReservoirEvidence {
+  string event_id = 1;
+  string pipeline_run_id = 2;
+  string collection_run_id = 3;
+  string run_type = 4;
+  // Monotonic event sequence within pipeline_run_id; zero is invalid.
+  uint64 event_sequence = 5;
+  // Symbol for execution-derived events; empty for run boundaries.
+  string symbol = 6;
+  CapitalReservoirEventType event_type = 7;
+  CapitalReservoirCause cause = 8;
+  // Hex BSON ObjectId for execution-derived events; empty for run boundaries.
+  string stage_emit_value_id = 9;
+  // Trigger source time in Unix milliseconds; zero when not applicable.
+  int64 trigger_event_unix_ms = 10;
+  // Confirmed execution time in Unix milliseconds; zero when not applicable.
+  int64 execution_event_unix_ms = 11;
+  // UTC event processing time in Unix milliseconds; zero is invalid.
+  int64 processed_unix_ms = 12;
+  // Filled whole-unit quantity; zero when not applicable.
+  uint64 quantity = 13;
+  // Existing execution price units; zero when not applicable.
+  double execution_price = 14;
+  // Existing signed cash-flow units: outflow negative, inflow positive.
+  double signed_flow_amount = 15;
+  // Existing currency-unit initial reservoir; zero when not applicable.
+  double initial_reservoir = 16;
+  // Governed symbol count at run start; zero when not applicable.
+  uint32 symbol_count = 17;
+  // Existing currency-unit initial capital per symbol; zero when not applicable.
+  double initial_symbol_capital = 18;
+  // Existing currency-unit reservoir before this event.
+  double reservoir_before = 19;
+  // Existing currency-unit reservoir after this event.
+  double reservoir_after = 20;
+  // Active whole-unit quantity after execution; zero when none/not applicable.
+  uint64 active_quantity_after = 21;
+  // Existing currency-unit cash at run end; zero when not applicable.
+  double reservoir_cash = 22;
+  // Existing currency-unit deployed value at run end; zero when not applicable.
+  double total_deployed_after = 23;
+  // Existing currency-unit marked capital at run end; zero when not applicable.
+  double total_marked_capital_after = 24;
+  // Existing currency-unit realized profit/loss at run end.
+  double realized_pnl = 25;
+  // Existing currency-unit unrealized profit/loss at run end.
+  double unrealized_pnl = 26;
+  // Existing currency-unit total profit/loss at run end.
+  double total_pnl = 27;
+  // Active position count at run end; zero when none/not applicable.
+  uint32 active_positions = 28;
+}
+
+// ProductEvidenceEnvelope carries one ordered product publication. The evidence
+// gateway produces it; Viewer and approved diagnostics consume it. Publication
+// sequence is monotonic within product_run_id but is not a durable resume token.
+message ProductEvidenceEnvelope {
+  ProductIdentity product_identity = 1;
+  // Deterministic publication identity; empty is invalid.
+  string publication_id = 2;
+  // Monotonic in-memory publication sequence within product run; zero is invalid.
+  uint64 publication_sequence = 3;
+  EvidenceType evidence_type = 4;
+  oneof evidence {
+    ProductStatus product_status = 5;
+    SourceStreamStatus source_status = 6;
+    CapitalReservoirEvidence capital_reservoir = 7;
+  }
+  // UTC publication time in Unix milliseconds; zero is invalid.
+  int64 produced_unix_ms = 8;
+}
+
+// SubscribeEvidenceResponse carries one product publication without changing
+// its publication identity, sequence, evidence variant, or Capital values.
+message SubscribeEvidenceResponse {
+  ProductEvidenceEnvelope evidence = 1;
+}
+
+// ProductEvidenceService publishes the minimum product evidence surface.
+// Owner: JEH evidence gateway. Intended callers: packaged Viewer and diagnostics.
+// Lifecycle: available with the JEH/evidence process. Authority: publication order
+// and faithful mapping of existing evidence. Guarantees: ordered in-process delivery
+// to a connected subscriber. Non-guarantees: durable resume, source continuity,
+// Viewer delivery, or recalculation of Capital/JEH values.
+service ProductEvidenceService {
+  // SubscribeEvidence streams status and Capital publications for one product run.
+  // Caller: packaged Viewer or approved local diagnostics. Request: product run only.
+  // Response: server stream ordered by publication_sequence for this connection.
+  // Identity: publication_id plus product run. Cancellation closes only subscriber.
+  // Errors: standard gRPC status for invalid run, shutdown, or publication failure.
+  // Retry/resume: caller may reconnect, but V1 supplies no durable resume guarantee.
+  // Side effects: none. Invariants: Capital values are mapped without recomputation.
+  // Non-responsibilities: storage replay, source gap repair, or lifecycle mutation.
+  rpc SubscribeEvidence(SubscribeEvidenceRequest) returns (stream SubscribeEvidenceResponse);
+}
+
+// ============================================================================
+// PRODUCT OPERATIONS / STATUS CONTRACT
+// ============================================================================
+
+// GetStatusRequest addresses the sole local product run. It cannot mutate lifecycle.
+message GetStatusRequest {
+  // Product run identity; empty addresses the sole local run.
+  string product_run_id = 1;
+}
+
+// ProductActivity reports existing monotonic activity counters separately from
+// lifecycle/readiness. The JEH runtime produces them; operations and Viewer consume.
+message ProductActivity {
+  // Accepted Bars received by JEH during this runtime; zero is a valid idle value.
+  uint64 bars_received = 1;
+  // Bars admitted by existing JEH admission; zero is valid.
+  uint64 bars_admitted = 2;
+  // Bars rejected by existing JEH admission; zero is valid.
+  uint64 bars_rejected = 3;
+  // Existing execution events; zero is valid.
+  uint64 execution_events = 4;
+  // Existing Capital events published; zero is valid before first event.
+  uint64 capital_events = 5;
+  // UTC receipt time of latest Bar; zero means none received.
+  int64 last_bar_unix_ms = 6;
+}
+
+// ProductStatus aggregates existing component truth for Child's Play display.
+// The lifecycle controller produces it; Viewer and status command consume it.
+// READY is listener/source-adapter readiness and does not require a recent Bar.
+message ProductStatus {
+  ProductIdentity product_identity = 1;
+  ProductLifecycleState lifecycle_state = 2;
+  SourceStreamStatus source = 3;
+  ComponentStatus jeh = 4;
+  ComponentStatus evidence = 5;
+  ComponentStatus viewer = 6;
+  ProductActivity activity = 7;
+  // Sanitized aggregate reason; empty means no additional reason.
+  string reason = 8;
+  // UTC production time in Unix milliseconds; zero means unavailable.
+  int64 produced_unix_ms = 9;
+}
+
+// GetStatusResponse wraps the current aggregate status for the unary operations RPC.
+message GetStatusResponse {
+  ProductStatus status = 1;
+}
+
+// ProductOperationsService exposes read-only status for Child's Play operation.
+// Owner: lifecycle controller/status aggregator. Intended callers: packaged Viewer,
+// status command, and local diagnostics. Lifecycle: available while product runs.
+// Authority: aggregate component state. Guarantees: current snapshot without requiring
+// market activity. Non-guarantees: freshness, source continuity, or component mutation.
+// Non-responsibilities: start, stop, configuration change, JEH control, or execution.
+service ProductOperationsService {
+  // GetStatus returns the current aggregate product snapshot.
+  // Caller: packaged Viewer, status command, or approved local diagnostics.
+  // Request: optional sole-local-run identity. Response: one current snapshot.
+  // Streaming/ordering: unary; no ordering guarantee across concurrent callers.
+  // Identity: ProductIdentity identifies the returned run. Cancellation aborts lookup.
+  // Errors: NOT_FOUND for a noncurrent run and UNAVAILABLE if aggregation is unavailable.
+  // Retry/resume: safe to retry; no resume concept. Side effects: none.
+  // Invariants: READY does not require recent market data. Non-responsibilities:
+  // lifecycle mutation, source repair, evidence replay, or JEH stage invocation.
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}

@@ -1,0 +1,33 @@
+# File: buf.gen.yaml
+# Date: 2026-09-17
+# Version/Status: 1.0 / Implementation authorized; validation required
+# Product: JEH-HOHO
+# Component: Product contract generation
+# Purpose: Generate all Go and Viewer artifacts in one deterministic Buf operation.
+# Responsibilities: Pin generators and route outputs to product-owned directories.
+# Inputs: The single JEH_HOHO.proto from the root buf.yaml module.
+# Outputs: Go protobuf/gRPC and Viewer TypeScript protobuf/gRPC artifacts.
+# Configuration: Run `buf generate` once from the repository root.
+# Dependencies: Buf CLI 1.59.0 and pinned remote plugins below.
+# Invariants: One generation operation; no per-service configuration or manual output.
+# Non-responsibilities: Building binaries, installing Viewer packages, or deployment.
+# Failure behavior: Generation fails atomically on contract/plugin/tool errors.
+# Change Log: 2026-09-17 - Initial deterministic product generation configuration.
+
+version: v2
+clean: true
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.10
+    out: gen/go
+    opt:
+      - paths=source_relative
+  - remote: buf.build/grpc/go:v1.5.1
+    out: gen/go
+    opt:
+      - paths=source_relative
+  - remote: buf.build/community/stephenh-ts-proto:v2.12.1
+    out: viewer/src/generated
+    opt:
+      - outputServices=grpc-js
+      - esModuleInterop=true
+      - useOptionals=messages

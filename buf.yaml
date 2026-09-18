@@ -1,0 +1,28 @@
+# File: buf.yaml
+# Date: 2026-09-17
+# Version/Status: 1.0 / Implementation authorized; validation required
+# Product: JEH-HOHO
+# Component: Product contract module
+# Purpose: Define the single Buf module and lint/breaking policy for JEH_HOHO.proto.
+# Responsibilities: Own one module rooted at api/proto and enforce STANDARD lint.
+# Inputs: api/proto/jeh_hoho/v1/JEH_HOHO.proto
+# Outputs: Validated module input for the single buf generate operation.
+# Configuration: No per-service modules or external proto dependencies.
+# Dependencies: Buf CLI 1.59.0.
+# Invariants: One V1 product source; package jeh_hoho.v1; no service splitting.
+# Non-responsibilities: Code generation settings, runtime configuration, or packaging.
+# Failure behavior: Buf lint/generate returns nonzero for invalid module input.
+# Change Log: 2026-09-17 - Initial single-module configuration.
+
+version: v2
+modules:
+  - path: api/proto
+lint:
+  use:
+    - STANDARD
+  except:
+    # Human authority requires this exact product contract filename.
+    - FILE_LOWER_SNAKE_CASE
+breaking:
+  use:
+    - FILE
